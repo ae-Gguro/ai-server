@@ -5,7 +5,9 @@ class ChatRequest(BaseModel):
     session_id: str
     profile_id: int = 1
 
-class RolePlayRequest(ChatRequest):
+class RolePlayStartRequest(BaseModel):
+    session_id: str
+    profile_id: int = 1
     user_role: str
     bot_role: str
 

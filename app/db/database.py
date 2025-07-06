@@ -5,14 +5,19 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.chat_history import InMemoryChatMessageHistory
 from app.core.config import DB_CONFIG
-from app.prompts.prompts import ANALYSIS_PROMPT_TEMPLATE, SUMMARIZATION_PROMPT_TEMPLATE
+from app.prompts.prompts import (
+    ANALYSIS_PROMPT_TEMPLATE,
+    SUMMARIZATION_PROMPT_TEMPLATE,
+    SINGLE_NEGATIVE_TALK_ANALYSIS_PROMPT
+)
 
 class DatabaseManager:
     def __init__(self, model):
         self.model = model
         self.store = {}
-        self.analysis_chain = self._create_analysis_chain()
         self.summarization_chain = self._create_summarization_chain()
+        self.sentiment_keyword_chain = self._create_sentiment_keyword_chain()
+        self.single_talk_analysis_chain = self._create_single_talk_analysis_chain()
         self._ensure_table_exists()
 
     def _create_db_connection(self):
@@ -26,12 +31,12 @@ class DatabaseManager:
             self.store[session_id] = {'history': InMemoryChatMessageHistory(), 'chatroom_id': None, 'type': 'conversation', 'roleplay_state': None, 'quiz_state': None}
         return self.store[session_id]['history']
     
-    def _create_analysis_chain(self):
+    def _create_sentiment_keyword_chain(self):
         try:
             prompt = ChatPromptTemplate.from_template(ANALYSIS_PROMPT_TEMPLATE)
             return prompt | self.model | StrOutputParser()
         except Exception as e:
-            print(f"[오류] 감정 분석 체인 생성 실패: {e}"); return None
+            print(f"[오류] 감정/키워드 분석 체인 생성 실패: {e}"); return None
 
     def _create_summarization_chain(self):
         try:
@@ -39,6 +44,14 @@ class DatabaseManager:
             return prompt | self.model | StrOutputParser()
         except Exception as e:
             print(f"[오류] 요약 체인 생성 실패: {e}"); return None
+            
+    def _create_single_talk_analysis_chain(self):
+        """단일 부정 대화를 분석하기 위한 LLM 체인"""
+        try:
+            prompt = ChatPromptTemplate.from_template(SINGLE_NEGATIVE_TALK_ANALYSIS_PROMPT)
+            return prompt | self.model | StrOutputParser()
+        except Exception as e:
+            print(f"[오류] 단일 대화 분석 체인 생성 실패: {e}"); return None
 
     def _ensure_table_exists(self):
         conn = self._create_db_connection()
@@ -56,6 +69,16 @@ class DatabaseManager:
                         updated_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP, profile_id BIGINT NOT NULL, "like" BOOLEAN,
                         positive BOOLEAN DEFAULT TRUE, keywords TEXT[]
                     );""")
+                
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS analysis (
+                        id BIGSERIAL PRIMARY KEY,
+                        talk_id BIGINT NOT NULL UNIQUE REFERENCES talk(id),
+                        profile_id BIGINT NOT NULL,
+                        summary TEXT NOT NULL,
+                        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+                    );""")
+                
                 cursor.execute("""
                     CREATE OR REPLACE FUNCTION update_updated_at_column() RETURNS TRIGGER AS $$
                     BEGIN NEW.updated_at = NOW(); RETURN NEW; END;
@@ -64,7 +87,7 @@ class DatabaseManager:
                     DROP TRIGGER IF EXISTS update_talk_updated_at ON talk;
                     CREATE TRIGGER update_talk_updated_at BEFORE UPDATE ON talk FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();""")
             conn.commit()
-            print("[DB 정보] 'chatroom' 및 'talk' 테이블 준비 완료.")
+            print("[DB 정보] 'chatroom', 'talk', 'analysis' 테이블 준비 완료.")
         except Error as e:
             print(f"[DB 오류] 테이블 생성 실패: {e}"); conn.rollback()
         finally:
@@ -131,36 +154,180 @@ class DatabaseManager:
             print(f"[DB 오류] 새 채팅방 생성 실패: {e}"); conn.rollback(); return None
         finally:
             if conn: conn.close()
+            
+    async def _analyze_and_save_negative_talk(self, talk_id: int, profile_id: int, user_input: str):
+        """부정적인 대화를 분석하고 그 결과를 analysis 테이블에 저장합니다."""
+        if not self.single_talk_analysis_chain:
+            print("[오류] 단일 대화 분석 체인이 초기화되지 않았습니다.")
+            return
+
+        try:
+            # LLM을 호출하여 분석 요약 문장 생성
+            raw_summary = await self.single_talk_analysis_chain.ainvoke({"user_talk": user_input})
+            
+            # --- 여기가 수정된 핵심 부분입니다 ---
+            # LLM이 출력한 결과에서 원하는 문장만 추출합니다.
+            clean_summary = raw_summary.strip()
+            if "[출력 형식]" in clean_summary:
+                clean_summary = clean_summary.split("[출력 형식]")[-1].strip()
+            elif '\n' in clean_summary:
+                 clean_summary = clean_summary.split('\n')[-1].strip()
+            # ------------------------------------
+
+            # 생성된 '정제된' 요약을 analysis 테이블에 저장
+            conn = self._create_db_connection()
+            if conn is None: return
+            try:
+                with conn.cursor() as cursor:
+                    cursor.execute(
+                        "INSERT INTO analysis (talk_id, profile_id, summary) VALUES (%s, %s, %s)",
+                        (talk_id, profile_id, clean_summary) # 정제된 요약 저장
+                    )
+                conn.commit()
+                print(f"✅ 부정 대화 분석 완료 및 저장 (talk_id: {talk_id})")
+            except Error as e:
+                print(f"[DB 오류] 분석 결과 저장 실패: {e}"); conn.rollback()
+            finally:
+                if conn: conn.close()
+        except Exception as e:
+            print(f"[오류] 부정 대화 분석 중 문제 발생: {e}")
 
     async def save_conversation_to_db(self, session_id: str, user_input: str, bot_response: str, chatroom_id: int, profile_id: int):
-        session_state = self.store.get(session_id, {})
-        if not self.analysis_chain:
-            is_positive, keywords_list = True, []
-        else:
+        is_positive, keywords_list = True, []
+        if self.sentiment_keyword_chain:
             try:
-                analysis_result = await self.analysis_chain.ainvoke({"text": user_input})
+                analysis_result = await self.sentiment_keyword_chain.ainvoke({"text": user_input})
                 is_positive = "부정" not in analysis_result
                 keywords_match = re.search(r"\[키워드:\s*(.*)\]", analysis_result)
                 keywords_list = [k.strip() for k in keywords_match.group(1).split(',') if k.strip()] if keywords_match else []
             except Exception as e:
-                print(f"[오류] 분석 중 오류 발생: {e}"); is_positive, keywords_list = True, []
+                print(f"[오류] 분석 중 오류 발생: {e}")
 
         conn = self._create_db_connection()
         if conn is None: return
+        user_talk_id = None
         try:
             with conn.cursor() as cursor:
-                query = """
-                    INSERT INTO talk (session_id, role, content, category, profile_id, positive, keywords, "like", chatroom_id) 
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, NULL, %s)
-                """
                 category_map = {'quiz': 'SAFETYSTUDY', 'roleplay': 'ROLEPLAY', 'conversation': 'LIFESTYLEHABIT'}
-                category = category_map.get(session_state.get('type', 'conversation'), 'LIFESTYLEHABIT')
+                category = category_map.get(self.store.get(session_id, {}).get('type', 'conversation'), 'LIFESTYLEHABIT')
                 
-                cursor.execute(query, (session_id, 'user', user_input, category, profile_id, is_positive, keywords_list, chatroom_id))
-                cursor.execute(query, (session_id, 'bot', bot_response, category, profile_id, True, [], chatroom_id))
+                cursor.execute(
+                    """INSERT INTO talk (session_id, role, content, category, profile_id, positive, keywords, "like", chatroom_id) 
+                       VALUES (%s, %s, %s, %s, %s, %s, %s, NULL, %s) RETURNING id""",
+                    (session_id, 'user', user_input, category, profile_id, is_positive, keywords_list, chatroom_id)
+                )
+                user_talk_id = cursor.fetchone()[0]
+
+                cursor.execute(
+                    """INSERT INTO talk (session_id, role, content, category, profile_id, "like", chatroom_id) 
+                       VALUES (%s, 'bot', %s, %s, %s, NULL, %s)""",
+                    (session_id, bot_response, category, profile_id, chatroom_id)
+                )
             conn.commit()
             print(f"✅ 채팅방[{chatroom_id}] 대화 저장 완료")
         except Error as e:
             print(f"[DB 오류] 메시지 저장 실패: {e}"); conn.rollback()
+        finally:
+            if conn: conn.close()
+
+        if not is_positive and user_talk_id:
+            await self._analyze_and_save_negative_talk(user_talk_id, profile_id, user_input)
+
+    def get_analyses_by_profile_id(self, profile_id: int):
+        conn = self._create_db_connection()
+        if conn is None: return []
+        try:
+            with conn.cursor() as cursor:
+                cursor.execute("""
+                    SELECT id, talk_id, summary, created_at
+                    FROM analysis
+                    WHERE profile_id = %s
+                    ORDER BY created_at DESC
+                """, (profile_id,))
+                analyses = cursor.fetchall()
+                columns = [desc[0] for desc in cursor.description]
+                return [dict(zip(columns, row)) for row in analyses]
+        except Error as e:
+            print(f"[DB 오류] 분석 목록 조회 실패: {e}")
+            return []
+        finally:
+            if conn: conn.close()
+
+    def get_chatrooms_by_profile_id(self, profile_id: int):
+        conn = self._create_db_connection()
+        if conn is None: return []
+        try:
+            with conn.cursor() as cursor:
+                cursor.execute("""
+                    SELECT id, topic, created_at
+                    FROM chatroom
+                    WHERE profile_id = %s
+                    ORDER BY created_at DESC
+                """, (profile_id,))
+                chatrooms = cursor.fetchall()
+                columns = [desc[0] for desc in cursor.description]
+                return [dict(zip(columns, row)) for row in chatrooms]
+        except Error as e:
+            print(f"[DB 오류] 채팅방 목록 조회 실패: {e}")
+            return []
+        finally:
+            if conn: conn.close()
+
+    def get_talks_by_chatroom_id(self, chatroom_id: int):
+        conn = self._create_db_connection()
+        if conn is None: return []
+        try:
+            with conn.cursor() as cursor:
+                cursor.execute("""
+                    SELECT id, role, content, created_at
+                    FROM talk
+                    WHERE chatroom_id = %s
+                    ORDER BY created_at ASC
+                """, (chatroom_id,))
+                talks = cursor.fetchall()
+                columns = [desc[0] for desc in cursor.description]
+                return [dict(zip(columns, row)) for row in talks]
+        except Error as e:
+            print(f"[DB 오류] 대화 내용 조회 실패: {e}")
+            return []
+        finally:
+            if conn: conn.close()
+
+    def update_talk_feedback(self, talk_id: int, like_status: bool):
+        conn = self._create_db_connection()
+        if conn is None: return False
+        try:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    """UPDATE talk SET "like" = %s WHERE id = %s""",
+                    (like_status, talk_id)
+                )
+            conn.commit()
+            return cursor.rowcount > 0
+        except Error as e:
+            print(f"[DB 오류] 피드백 업데이트 실패: {e}")
+            conn.rollback()
+            return False
+        finally:
+            if conn: conn.close()
+
+    def get_negative_talks_by_profile_id(self, profile_id: int):
+        conn = self._create_db_connection()
+        if conn is None: return []
+        try:
+            with conn.cursor() as cursor:
+                cursor.execute("""
+                    SELECT tk.id, tk.content, tk.created_at, cr.topic
+                    FROM talk AS tk
+                    JOIN chatroom AS cr ON tk.chatroom_id = cr.id
+                    WHERE tk.profile_id = %s AND tk.positive = FALSE
+                    ORDER BY tk.created_at DESC
+                """, (profile_id,))
+                talks = cursor.fetchall()
+                columns = [desc[0] for desc in cursor.description]
+                return [dict(zip(columns, row)) for row in talks]
+        except Error as e:
+            print(f"[DB 오류] 부정 감정 대화 조회 실패: {e}")
+            return []
         finally:
             if conn: conn.close()

@@ -15,7 +15,6 @@ class ChatbotSystem:
         return cls._instance
 
     def __init__(self):
-        # Prevent re-initialization
         if hasattr(self, 'initialized'):
             return
         
@@ -29,5 +28,4 @@ class ChatbotSystem:
         self.initialized = True
         print("✅ 챗봇 시스템이 정상적으로 로드되었습니다.")
 
-# Create a single, shared instance of the ChatbotSystem
 chatbot_system = ChatbotSystem()
