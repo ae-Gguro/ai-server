@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 class ChatRequest(BaseModel):
     user_input: str
@@ -17,3 +17,6 @@ class AdviceRequest(BaseModel):
 class EndRequest(BaseModel):
     session_id: str
     profile_id: int = 1
+
+class FeedbackRequest(BaseModel):
+    like: bool = Field(..., description="좋아요는 true, 싫어요는 false")

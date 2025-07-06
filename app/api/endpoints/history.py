@@ -1,5 +1,6 @@
 from fastapi import APIRouter, HTTPException
 from app.services.chatbot_system import chatbot_system
+from app.models.schemas import FeedbackRequest 
 
 router = APIRouter()
 
@@ -36,3 +37,17 @@ async def get_negative_talks(profile_id: int):
             detail="해당 프로필의 부정 감정 대화 기록을 찾을 수 없습니다."
         )
     return talks
+
+
+@router.patch("/talks/{talk_id}/feedback", summary="대화 피드백(좋아요/싫어요) 남기기")
+async def update_feedback(talk_id: int, req: FeedbackRequest):
+    """
+    특정 대화(talk) 메시지에 '좋아요'(true) 또는 '싫어요'(false) 피드백을 기록합니다.
+    """
+    success = chatbot_system.db_manager.update_talk_feedback(talk_id, req.like)
+    if not success:
+        raise HTTPException(
+            status_code=404, 
+            detail="피드백을 업데이트할 대상을 찾지 못했거나 오류가 발생했습니다."
+        )
+    return {"message": "피드백이 성공적으로 기록되었습니다."}
