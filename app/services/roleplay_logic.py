@@ -43,20 +43,17 @@ class RolePlayLogic:
         response_text = f"좋아! 지금부터 너는 '{user_role}', 나는 '{bot_role}'이야. 역할에 맞춰 이야기해보자!"
         return response_text, chatroom_id
 
-    async def talk(self, req: dict, profile_id: int):
+
+    async def talk(self, req: dict, profile_id: int, chatroom_id: int):
         user_input = req['user_input']
         session_id = req['session_id']
         session_state = self.db_manager.store.get(session_id)
 
         if not session_state or not session_state.get('roleplay_state'):
-            return "역할놀이가 시작되지 않았습니다. 먼저 역할놀이를 시작해주세요.", None
-
-        chatroom_id = session_state.get('chatroom_id')
-        if not chatroom_id:
-            return "오류: 역할놀이 중인 채팅방을 찾을 수 없습니다.", None
+            return "역할놀이가 시작되지 않았습니다. 먼저 역할놀이를 시작해주세요."
 
         if not self.conversational_chain:
-            return "챗봇 로직 초기화에 실패했습니다.", chatroom_id
+            return "챗봇 로직 초기화에 실패했습니다."
 
         state = session_state['roleplay_state']
         bot_role = state['bot_role']
@@ -73,7 +70,8 @@ class RolePlayLogic:
                 {"input": user_input, "system_prompt": system_prompt_text},
                 config={'configurable': {'session_id': session_id}}
             )
-            return response, chatroom_id
+            # chatroom_id를 더 이상 반환하지 않고, 응답 텍스트만 반환
+            return response
         except Exception as e:
             print(f"[오류] 역할놀이 대화 생성 중 문제 발생: {e}")
-            return "미안, 지금은 대답하기가 좀 힘들어.", chatroom_id
+            return "미안, 지금은 대답하기가 좀 힘들어."
