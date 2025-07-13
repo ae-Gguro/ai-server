@@ -27,10 +27,13 @@ async def start_roleplay(req: RolePlayStartRequest, background_tasks: Background
 
 @router.post("/{chatroom_id}/talk", summary="역할놀이 대화")
 async def handle_roleplay(req: ChatRequest, chatroom_id: int, background_tasks: BackgroundTasks):
-    # 서비스 로직으로부터 응답 텍스트와 역할 정보를 함께 받음
-    response_text, user_role, bot_role = await chatbot_system.roleplay_logic.talk(req.dict(), req.profile_id, chatroom_id)
+    result = await chatbot_system.roleplay_logic.talk(req.dict(), req.profile_id, chatroom_id)
     
-    if response_text and "오류" not in response_text and "미안" not in response_text:
+    response_text = result.get("response")
+    user_role = result.get("user_role")
+    bot_role = result.get("bot_role")
+
+    if result.get("type") == "continue":
         background_tasks.add_task(
             chatbot_system.db_manager.save_conversation_to_db, 
             req.session_id, 
@@ -40,8 +43,8 @@ async def handle_roleplay(req: ChatRequest, chatroom_id: int, background_tasks: 
             req.profile_id
         )
     
-    # 최종 API 응답에 역할 정보를 포함하여 반환
     return {
+        "status" : result.get("type"),
         "user_role": user_role,
         "bot_role": bot_role,
         "response": response_text
