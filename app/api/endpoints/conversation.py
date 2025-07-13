@@ -23,5 +23,6 @@ async def handle_conversation(req: ChatRequest, background_tasks: BackgroundTask
     
     return {
         "status" : result.get("type"),
-        "response": result.get("response")
+        "response": result.get("response"),
+        "chatroom_id": chatroom_id,
         }

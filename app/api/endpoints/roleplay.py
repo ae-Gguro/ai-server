@@ -47,5 +47,6 @@ async def handle_roleplay(req: ChatRequest, chatroom_id: int, background_tasks: 
         "status" : result.get("type"),
         "user_role": user_role,
         "bot_role": bot_role,
+        "chatroom_id": chatroom_id,
         "response": response_text
     }
