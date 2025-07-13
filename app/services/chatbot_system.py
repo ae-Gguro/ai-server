@@ -18,7 +18,7 @@ class ChatbotSystem:
         if hasattr(self, 'initialized'):
             return
         
-        print("🤖 챗봇 시스템 로딩 시작...")
+        print("챗봇 시스템 로딩 시작")
         self.model = ChatOllama(model=MODEL_NAME)
         self.db_manager = DatabaseManager(self.model)
         self.conversation_logic = ConversationLogic(self.model, self.db_manager)
@@ -26,6 +26,6 @@ class ChatbotSystem:
         self.quiz_logic = QuizLogic(self.model, self.db_manager)
         self.relationship_advisor = RelationshipAdvisor(self.model)
         self.initialized = True
-        print("✅ 챗봇 시스템이 정상적으로 로드되었습니다.")
+        print("챗봇 시스템이 정상적으로 로드됨")
 
 chatbot_system = ChatbotSystem()

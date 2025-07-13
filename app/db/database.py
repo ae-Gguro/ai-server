@@ -156,7 +156,8 @@ class DatabaseManager:
             if conn: conn.close()
             
     async def _analyze_and_save_negative_talk(self, talk_id: int, profile_id: int, user_input: str):
-        """부정적인 대화를 분석하고 그 결과를 analysis 테이블에 저장합니다."""
+        """부정적인 대화를 분석하고 그 결과를 analysis 테이블에 저장"""
+
         if not self.single_talk_analysis_chain:
             print("[오류] 단일 대화 분석 체인이 초기화되지 않았습니다.")
             return
@@ -165,14 +166,12 @@ class DatabaseManager:
             # LLM을 호출하여 분석 요약 문장 생성
             raw_summary = await self.single_talk_analysis_chain.ainvoke({"user_talk": user_input})
             
-            # --- 여기가 수정된 핵심 부분입니다 ---
-            # LLM이 출력한 결과에서 원하는 문장만 추출합니다.
+            # LLM이 출력한 결과에서 원하는 문장만 추출
             clean_summary = raw_summary.strip()
             if "[출력 형식]" in clean_summary:
                 clean_summary = clean_summary.split("[출력 형식]")[-1].strip()
             elif '\n' in clean_summary:
-                 clean_summary = clean_summary.split('\n')[-1].strip()
-            # ------------------------------------
+                clean_summary = clean_summary.split('\n')[-1].strip()
 
             # 생성된 '정제된' 요약을 analysis 테이블에 저장
             conn = self._create_db_connection()
@@ -184,7 +183,7 @@ class DatabaseManager:
                         (talk_id, profile_id, clean_summary) # 정제된 요약 저장
                     )
                 conn.commit()
-                print(f"✅ 부정 대화 분석 완료 및 저장 (talk_id: {talk_id})")
+                print(f"부정 대화 분석 완료 및 저장 (talk_id: {talk_id})")
             except Error as e:
                 print(f"[DB 오류] 분석 결과 저장 실패: {e}"); conn.rollback()
             finally:
@@ -213,18 +212,18 @@ class DatabaseManager:
                 
                 cursor.execute(
                     """INSERT INTO talk (session_id, role, content, category, profile_id, positive, keywords, "like", chatroom_id) 
-                       VALUES (%s, %s, %s, %s, %s, %s, %s, NULL, %s) RETURNING id""",
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, NULL, %s) RETURNING id""",
                     (session_id, 'user', user_input, category, profile_id, is_positive, keywords_list, chatroom_id)
                 )
                 user_talk_id = cursor.fetchone()[0]
 
                 cursor.execute(
                     """INSERT INTO talk (session_id, role, content, category, profile_id, "like", chatroom_id) 
-                       VALUES (%s, 'bot', %s, %s, %s, NULL, %s)""",
+                        VALUES (%s, 'bot', %s, %s, %s, NULL, %s)""",
                     (session_id, bot_response, category, profile_id, chatroom_id)
                 )
             conn.commit()
-            print(f"✅ 채팅방[{chatroom_id}] 대화 저장 완료")
+            print(f"채팅방[{chatroom_id}] 대화 저장 완료")
         except Error as e:
             print(f"[DB 오류] 메시지 저장 실패: {e}"); conn.rollback()
         finally:

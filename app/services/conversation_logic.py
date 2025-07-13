@@ -37,7 +37,12 @@ class ConversationLogic:
                 MessagesPlaceholder(variable_name="chat_history"),
                 ("human", "{input}"),
             ])
-            rag_chain_main = (RunnablePassthrough.assign(context=lambda x: retriever.get_relevant_documents(x["input"]))| prompt| self.model| StrOutputParser())
+            rag_chain_main = (
+                RunnablePassthrough.assign(context=lambda x: retriever.get_relevant_documents(x["input"]))
+                | prompt
+                | self.model
+                | StrOutputParser()
+            )            
             return RunnableWithMessageHistory(rag_chain_main, self.db_manager._get_session_history, input_messages_key="input", history_messages_key="chat_history")
         except Exception as e:
             print(f"[오류] RAG 또는 체인 설정 중 심각한 문제 발생: {e}"); return None

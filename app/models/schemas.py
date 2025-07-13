@@ -1,4 +1,5 @@
 from pydantic import BaseModel, Field
+from typing import Optional
 
 class ChatRequest(BaseModel):
     user_input: str
@@ -20,3 +21,9 @@ class EndRequest(BaseModel):
 
 class FeedbackRequest(BaseModel):
     like: bool = Field(..., description="좋아요는 true, 싫어요는 false")
+
+class QuizRequest(BaseModel):
+    user_input: str
+    session_id: str
+    profile_id: int = 1
+    topic: Optional[str] = None
