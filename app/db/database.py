@@ -106,8 +106,11 @@ class DatabaseManager:
         room_type = session_state.get('type', 'conversation')
         quiz_info = session_state.get('quiz_state')
 
+        # --- 여기가 수정된 핵심 부분입니다 ---
+        # 오래된 quiz_item 대신 새로운 quiz_state 구조에서 topic을 가져옵니다.
         if room_type == 'quiz' and quiz_info:
-            summary = f"[퀴즈] {quiz_info['quiz_item']['question']}"
+            quiz_topic = quiz_info.get('topic', '안전 퀴즈') # 혹시 topic이 없을 경우를 대비한 기본값
+            summary = f"[{quiz_topic}] 퀴즈를 완료했어요."
         elif history.messages:
             full_history_str = "\n".join([f"{msg.type}: {msg.content}" for msg in history.messages])
             summary_text = await self.summarization_chain.ainvoke({"history": full_history_str})
