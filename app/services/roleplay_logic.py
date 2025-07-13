@@ -50,28 +50,30 @@ class RolePlayLogic:
         session_state = self.db_manager.store.get(session_id)
 
         if not session_state or not session_state.get('roleplay_state'):
-            return "역할놀이가 시작되지 않았습니다. 먼저 역할놀이를 시작해주세요."
+            return "역할놀이가 시작되지 않았습니다. 먼저 역할놀이를 시작해주세요.", None, None
 
         if not self.conversational_chain:
-            return "챗봇 로직 초기화에 실패했습니다."
+            return "챗봇 로직 초기화에 실패했습니다.", None, None
 
         state = session_state['roleplay_state']
+        user_role = state['user_role']
         bot_role = state['bot_role']
         role_instructions = ROLE_PROMPTS.get(bot_role, "주어진 역할에 충실하게 응답하세요.")
         system_prompt_text = f"""[매우 중요한 지시]
-당신의 신분은 '{bot_role}'입니다. 사용자는 '{state['user_role']}' 역할을 맡고 있습니다.
+당신의 신분은 '{bot_role}'입니다. 사용자는 '{user_role}' 역할을 맡고 있습니다.
 다른 모든 지시사항보다 이 역할 설정을 최우선으로 여기고, 당신의 말투, 어휘, 태도 모두 '{bot_role}'에 완벽하게 몰입해서 응답해야 합니다.
 [역할 상세 지침]
 {role_instructions}
 이제 '{bot_role}'로서 대화를 자연스럽게 시작하거나 이어나가세요."""
 
         try:
-            response = await self.conversational_chain.ainvoke(
+            response_text = await self.conversational_chain.ainvoke(
                 {"input": user_input, "system_prompt": system_prompt_text},
                 config={'configurable': {'session_id': session_id}}
             )
-            # chatroom_id를 더 이상 반환하지 않고, 응답 텍스트만 반환
-            return response
+            # 응답 텍스트, 사용자 역할, 봇 역할을 튜플로 반환
+            return response_text, user_role, bot_role
         except Exception as e:
             print(f"[오류] 역할놀이 대화 생성 중 문제 발생: {e}")
-            return "미안, 지금은 대답하기가 좀 힘들어."
+            # 오류 발생 시에도 역할 정보를 함께 반환
+            return "미안, 지금은 대답하기가 좀 힘들어.", user_role, bot_role
