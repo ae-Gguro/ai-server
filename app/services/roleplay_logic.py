@@ -43,8 +43,7 @@ class RolePlayLogic:
         response_text = f"좋아! 지금부터 너는 '{user_role}', 나는 '{bot_role}'이야. 역할에 맞춰 이야기해보자!"
         return response_text, chatroom_id
 
-    # --- 여기가 수정된 핵심 부분입니다 ---
-    # 반환값에 역할 정보를 추가합니다.
+
     async def talk(self, req: dict, profile_id: int, chatroom_id: int):
         user_input = req['user_input']
         session_id = req['session_id']

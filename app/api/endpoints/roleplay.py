@@ -1,5 +1,3 @@
-# app/api/endpoints/roleplay.py 파일의 내용을 아래 코드로 전체 교체하세요.
-
 from fastapi import APIRouter, BackgroundTasks
 from app.models.schemas import RolePlayStartRequest, ChatRequest
 from app.services.chatbot_system import chatbot_system
