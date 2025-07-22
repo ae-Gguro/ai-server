@@ -91,6 +91,7 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+envsgguro-llm-2/
 
 # Spyder project settings
 .spyderproject
