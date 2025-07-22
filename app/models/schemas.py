@@ -27,3 +27,8 @@ class QuizRequest(BaseModel):
     session_id: str
     profile_id: int = 1
     topic: Optional[str] = None
+
+class ChosungRequest(BaseModel):
+    user_input: str
+    session_id: str
+    profile_id: int

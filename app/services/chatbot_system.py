@@ -5,6 +5,7 @@ from app.services.conversation_logic import ConversationLogic
 from app.services.roleplay_logic import RolePlayLogic
 from app.services.quiz_logic import QuizLogic
 from app.services.relationship_advisor import RelationshipAdvisor
+from app.services.chosung_logic import ChosungQuizLogic 
 
 class ChatbotSystem:
     _instance = None
@@ -25,6 +26,7 @@ class ChatbotSystem:
         self.roleplay_logic = RolePlayLogic(self.model, self.db_manager)
         self.quiz_logic = QuizLogic(self.model, self.db_manager)
         self.relationship_advisor = RelationshipAdvisor(self.model)
+        self.chosung_logic = ChosungQuizLogic(self.db_manager)
         self.initialized = True
         print("챗봇 시스템이 정상적으로 로드됨")
 

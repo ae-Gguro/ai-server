@@ -61,38 +61,46 @@ class DatabaseManager:
         if conn is None: return
         try:
             with conn.cursor() as cursor:
-                # cursor.execute("DROP TABLE IF EXISTS analysis CASCADE;")
-                # cursor.execute("DROP TABLE IF EXISTS talk CASCADE;")
-                # cursor.execute("DROP TABLE IF EXISTS chatroom CASCADE;")
-                # cursor.execute("DROP TYPE IF EXISTS sentiment_type CASCADE;")
-
                 cursor.execute("""
                     CREATE TABLE IF NOT EXISTS chatroom (
-                        id BIGSERIAL PRIMARY KEY, profile_id BIGINT NOT NULL, topic TEXT, created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+                        id BIGSERIAL PRIMARY KEY, 
+                        user_id BIGINT NOT NULL, 
+                        profile_id BIGINT NOT NULL, 
+                        topic TEXT, 
+                        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
                     );""")
 
-                cursor.execute("CREATE TYPE sentiment_type AS ENUM ('긍정', '부정', '일반');")
+                cursor.execute("""
+                    DO $$
+                    BEGIN
+                        IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'sentiment_type') THEN
+                            CREATE TYPE sentiment_type AS ENUM ('긍정', '부정', '일반');
+                        END IF;
+                    END$$;
+                """)
                 
                 cursor.execute("""
                     CREATE TABLE IF NOT EXISTS talk (
                         id BIGSERIAL PRIMARY KEY,
-                        chatroom_id BIGINT NOT NULL REFERENCES chatroom(id),
+                        chatroom_id BIGINT NOT NULL REFERENCES chatroom(id) ON DELETE CASCADE,
+                        user_id BIGINT NOT NULL,
+                        profile_id BIGINT NOT NULL,
                         category VARCHAR(50) NOT NULL,
                         content TEXT NOT NULL,
                         session_id VARCHAR(255),
                         role VARCHAR(255),
                         created_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
                         updated_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                        profile_id BIGINT NOT NULL,
                         "like" BOOLEAN,
-                        sentiment sentiment_type DEFAULT '일반', -- positive 컬럼을 sentiment로 변경
+                        sentiment sentiment_type DEFAULT '일반',
                         keywords TEXT[]
                     );""")
                 
                 cursor.execute("""
                     CREATE TABLE IF NOT EXISTS analysis (
                         id BIGSERIAL PRIMARY KEY,
-                        talk_id BIGINT NOT NULL UNIQUE REFERENCES talk(id),
+                        talk_id BIGINT NOT NULL UNIQUE REFERENCES talk(id) ON DELETE CASCADE,
+                        user_id BIGINT NOT NULL,
                         profile_id BIGINT NOT NULL,
                         summary TEXT NOT NULL,
                         is_positive BOOLEAN NOT NULL,
@@ -103,13 +111,23 @@ class DatabaseManager:
                     CREATE OR REPLACE FUNCTION update_updated_at_column() RETURNS TRIGGER AS $$
                     BEGIN NEW.updated_at = NOW(); RETURN NEW; END;
                     $$ language 'plpgsql';""")
+                
                 cursor.execute("""
-                    DROP TRIGGER IF EXISTS update_talk_updated_at ON talk;
-                    CREATE TRIGGER update_talk_updated_at BEFORE UPDATE ON talk FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();""")
+                    DO $$
+                    BEGIN
+                        IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'update_talk_updated_at') THEN
+                            CREATE TRIGGER update_talk_updated_at 
+                            BEFORE UPDATE ON talk 
+                            FOR EACH ROW 
+                            EXECUTE FUNCTION update_updated_at_column();
+                        END IF;
+                    END$$;
+                """)
+
             conn.commit()
-            print("[DB 정보] 'chatroom', 'talk', 'analysis' 테이블 준비 완료.")
+            print("[DB 정보] 테이블 상태 확인 및 준비 완료.")
         except Error as e:
-            print(f"[DB 오류] 테이블 생성 실패: {e}"); conn.rollback()
+            print(f"[DB 오류] 테이블 생성/확인 실패: {e}"); conn.rollback()
         finally:
             if conn: conn.close()
 
