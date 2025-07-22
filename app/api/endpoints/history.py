@@ -1,11 +1,15 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from app.services.chatbot_system import chatbot_system
 from app.models.schemas import FeedbackRequest 
+from app.core.security import get_current_user_id 
 
 router = APIRouter()
 
 @router.get("/chatrooms/{profile_id}", summary="프로필별 채팅방 목록 조회")
-async def get_chatrooms_by_profile(profile_id: int):
+async def get_chatrooms_by_profile(
+    profile_id: int,
+    user_id: int = Depends(get_current_user_id)
+    ):
     """
     특정 profile_id에 해당하는 모든 채팅방의 목록을 최신순으로 조회합니다.
     """
@@ -25,7 +29,7 @@ async def get_talks_by_chatroom(chatroom_id: int):
     return talks
 
 @router.get("/negative-talks/{profile_id}", summary="부정 감정 대화 모아보기")
-async def get_negative_talks(profile_id: int):
+async def get_negative_talks(profile_id: int, user_id: int = Depends(get_current_user_id)):
     """
     특정 profile_id에 대해 사용자가 부정적인 감정을 표현한('positive'=false)
     모든 대화 내용을 최신순으로 조회합니다.

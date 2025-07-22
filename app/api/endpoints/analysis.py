@@ -1,13 +1,17 @@
 # app/api/endpoints/analysis.py 파일의 내용을 아래 코드로 전체 교체하세요.
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from app.services.chatbot_system import chatbot_system
 from collections import defaultdict # 그룹화를 위해 defaultdict를 사용합니다.
+from app.core.security import get_current_user_id
 
 router = APIRouter()
 
 @router.get("/sentiment-summary/{profile_id}", summary="날짜별 긍정/부정 감정 분석 목록 조회")
-async def get_sentiment_summary(profile_id: int):
+async def get_sentiment_summary(
+    profile_id: int,
+    user_id: int = Depends(get_current_user_id)
+    ):
     """
     프로필에 대해 저장된 모든 긍정/부정 감정 분석 결과를
     날짜별로 그룹화하여 반환합니다.

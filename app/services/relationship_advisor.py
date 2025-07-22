@@ -32,8 +32,7 @@ class RelationshipAdvisor:
             if cursor: cursor.close()
             if conn: conn.close()
 
-    async def generate_advice(self, req: dict):
-        profile_id = req['profile_id']
+    async def generate_advice(self, profile_id: int):
         conversations = self._fetch_today_conversations(profile_id)
         
         if not conversations:
