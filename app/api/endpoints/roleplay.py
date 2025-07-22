@@ -1,12 +1,17 @@
-from fastapi import APIRouter, BackgroundTasks
+from fastapi import APIRouter, BackgroundTasks, Depends
 from app.models.schemas import RolePlayStartRequest, ChatRequest
 from app.services.chatbot_system import chatbot_system
+from app.core.security import get_current_user_id 
 
 router = APIRouter()
 
 @router.post("/start", summary="역할놀이 시작")
-async def start_roleplay(req: RolePlayStartRequest, background_tasks: BackgroundTasks):
-    response_text, chatroom_id = await chatbot_system.roleplay_logic.start(req.dict(), req.profile_id)
+async def start_roleplay(
+    req: RolePlayStartRequest, 
+    background_tasks: BackgroundTasks,
+    profile_id: int = Depends(get_current_user_id)
+    ):
+    response_text, chatroom_id = await chatbot_system.roleplay_logic.start(req.dict(), profile_id)
     
     if chatroom_id:
         initial_system_input = f"역할놀이 시작: 사용자({req.user_role}), 봇({req.bot_role})"
@@ -16,7 +21,7 @@ async def start_roleplay(req: RolePlayStartRequest, background_tasks: Background
             initial_system_input, 
             response_text, 
             chatroom_id, 
-            req.profile_id
+            profile_id
         )
     
     return {
@@ -26,7 +31,12 @@ async def start_roleplay(req: RolePlayStartRequest, background_tasks: Background
     }
 
 @router.post("/{chatroom_id}/talk", summary="역할놀이 대화")
-async def handle_roleplay(req: ChatRequest, chatroom_id: int, background_tasks: BackgroundTasks):
+async def handle_roleplay(
+    req: ChatRequest, 
+    chatroom_id: int, 
+    background_tasks: BackgroundTasks,
+    user_id: int = Depends(get_current_user_id)
+    ):
     result = await chatbot_system.roleplay_logic.talk(req.dict(), req.profile_id, chatroom_id)
     
     response_text = result.get("response")

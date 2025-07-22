@@ -1,6 +1,7 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from app.models.schemas import EndRequest, AdviceRequest
 from app.services.chatbot_system import chatbot_system
+from app.core.security import get_current_user_id 
 
 router = APIRouter()
 
@@ -10,5 +11,5 @@ async def end_conversation(req: EndRequest):
     return {"message": "대화가 종료되고 요약되었습니다."}
 
 @router.post("/relationship-advice", summary="관계 조언 생성")
-async def get_relationship_advice(req: AdviceRequest):
-    return await chatbot_system.relationship_advisor.generate_advice(req.dict())
+async def get_relationship_advice(req: AdviceRequest, user_id: int = Depends(get_current_user_id)):
+    return await chatbot_system.relationship_advisor.generate_advice(req.profile_id)

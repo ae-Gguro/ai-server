@@ -61,10 +61,10 @@ class DatabaseManager:
         if conn is None: return
         try:
             with conn.cursor() as cursor:
-                cursor.execute("DROP TABLE IF EXISTS analysis CASCADE;")
-                cursor.execute("DROP TABLE IF EXISTS talk CASCADE;")
-                cursor.execute("DROP TABLE IF EXISTS chatroom CASCADE;")
-                cursor.execute("DROP TYPE IF EXISTS sentiment_type CASCADE;")
+                # cursor.execute("DROP TABLE IF EXISTS analysis CASCADE;")
+                # cursor.execute("DROP TABLE IF EXISTS talk CASCADE;")
+                # cursor.execute("DROP TABLE IF EXISTS chatroom CASCADE;")
+                # cursor.execute("DROP TYPE IF EXISTS sentiment_type CASCADE;")
 
                 cursor.execute("""
                     CREATE TABLE IF NOT EXISTS chatroom (

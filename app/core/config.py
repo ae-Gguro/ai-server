@@ -20,3 +20,7 @@ EMBEDDING_MODEL_NAME = os.getenv('EMBEDDING_MODEL_NAME')
 # --- 파일 경로 ---
 QUIZ_DATA_PATH = os.getenv('QUIZ_DATA_PATH')
 RAG_DATA_PATH = os.getenv('RAG_DATA_PATH')
+
+# --- JWT 설정 (여기에 추가) ---
+JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY")
+ALGORITHM = os.getenv("ALGORITHM")
