@@ -1,3 +1,7 @@
+__import__('pysqlite3')
+import sys
+sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
+
 from fastapi import FastAPI
 from app.api.router import api_router
 from app.services.chatbot_system import chatbot_system # This will initialize the system
