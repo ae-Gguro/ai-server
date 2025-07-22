@@ -14,6 +14,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # 앱 소스 복사
 COPY ./app ./app
 
+# 퀴즈 및 RAG에 필요한 데이터 폴더
+COPY ./rag_data ./rag_data
+
 # 포트 노출
 EXPOSE 8000
 
