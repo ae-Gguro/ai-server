@@ -20,7 +20,28 @@ class ConversationLogic:
         self.db_manager = db_manager
         self.instruct = CONVERSATION_INSTRUCTION
         self.topic_check_chain = self._create_topic_check_chain()
-        self.rag_chain = self._setup_rag_and_history()
+        # self.rag_chain = self._setup_rag_and_history()
+        self.conversational_chain = self._setup_conversational_chain()
+
+        # RAG 관련 로직이 모두 제거된, 간단한 대화 체인 생성 함수
+    def _setup_conversational_chain(self):
+        try:
+            prompt = ChatPromptTemplate.from_messages([
+                ("system", self.instruct),
+                MessagesPlaceholder(variable_name="chat_history"),
+                ("human", "{input}"),
+            ])
+            chain = prompt | self.model | StrOutputParser()
+            
+            return RunnableWithMessageHistory(
+                chain,
+                self.db_manager._get_session_history,
+                input_messages_key="input",
+                history_messages_key="chat_history",
+            )
+        except Exception as e:
+            print(f"[오류] 대화 체인 설정 중 문제 발생: {e}")
+            return None
 
     def _create_topic_check_chain(self):
         try:
@@ -29,23 +50,23 @@ class ConversationLogic:
         except Exception as e:
             print(f"[오류] 주제 분석 체인 생성 중 문제 발생: {e}"); return None
 
-    def _setup_rag_and_history(self):
-        try:
-            # embeddings = HuggingFaceEmbeddings(model_name=EMBEDDING_MODEL_NAME)
-            embeddings = OllamaEmbeddings(model="mxbai-embed-large")
-            documents = TextLoader(RAG_DATA_PATH, encoding='utf-8').load()
-            text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=100)
-            docs = text_splitter.split_documents(documents)
-            retriever = Chroma.from_documents(docs, embeddings).as_retriever()
-            prompt = ChatPromptTemplate.from_messages([
-                ("system", f"{self.instruct}\n\n[참고할 만한 정보]\n{{context}}"),
-                MessagesPlaceholder(variable_name="chat_history"),
-                ("human", "{input}"),
-            ])
-            rag_chain_main = (RunnablePassthrough.assign(context=lambda x: retriever.get_relevant_documents(x["input"]))| prompt| self.model| StrOutputParser())
-            return RunnableWithMessageHistory(rag_chain_main, self.db_manager._get_session_history, input_messages_key="input", history_messages_key="chat_history")
-        except Exception as e:
-            print(f"[오류] RAG 또는 체인 설정 중 심각한 문제 발생: {e}"); return None
+    # def _setup_rag_and_history(self):
+    #     try:
+    #         # embeddings = HuggingFaceEmbeddings(model_name=EMBEDDING_MODEL_NAME)
+    #         embeddings = OllamaEmbeddings(model="mxbai-embed-large")
+    #         documents = TextLoader(RAG_DATA_PATH, encoding='utf-8').load()
+    #         text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=100)
+    #         docs = text_splitter.split_documents(documents)
+    #         retriever = Chroma.from_documents(docs, embeddings).as_retriever()
+    #         prompt = ChatPromptTemplate.from_messages([
+    #             ("system", f"{self.instruct}\n\n[참고할 만한 정보]\n{{context}}"),
+    #             MessagesPlaceholder(variable_name="chat_history"),
+    #             ("human", "{input}"),
+    #         ])
+    #         rag_chain_main = (RunnablePassthrough.assign(context=lambda x: retriever.get_relevant_documents(x["input"]))| prompt| self.model| StrOutputParser())
+    #         return RunnableWithMessageHistory(rag_chain_main, self.db_manager._get_session_history, input_messages_key="input", history_messages_key="chat_history")
+    #     except Exception as e:
+    #         print(f"[오류] RAG 또는 체인 설정 중 심각한 문제 발생: {e}"); return None
 
     async def talk(self, req: dict, profile_id: int):
         user_input = req['user_input']
@@ -62,7 +83,7 @@ class ConversationLogic:
 
         session_state = self.db_manager.store.setdefault(session_id, {})
         current_chatroom_id = session_state.get('chatroom_id')
-        history = session_state.get('history')
+        history = session_state.get('hisstory')
 
         if not current_chatroom_id:
             current_chatroom_id = await self.db_manager.create_new_chatroom(session_id, profile_id, 'conversation')
