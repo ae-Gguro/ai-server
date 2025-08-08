@@ -81,13 +81,13 @@ class ConversationLogic:
         history = session_state.get('history')
 
         if not current_chatroom_id:
-            current_chatroom_id = await self.db_manager.create_new_chatroom(session_id, user_id, profile_id, 'conversation')
+            current_chatroom_id = await self.db_manager.create_new_chatroom(session_id, profile_id, 'conversation')
         elif history and history.messages:
             history_str = "\n".join([f"{msg.type}: {msg.content}" for msg in history.messages[-4:]])
             topic_check_result = await self.topic_check_chain.ainvoke({"history": history_str, "input": user_input})
             if "NEW_TOPIC" in topic_check_result:
                 await self.db_manager.summarize_and_close_room(session_id)
-                current_chatroom_id = await self.db_manager.create_new_chatroom(session_id, user_id, profile_id, 'conversation')
+                current_chatroom_id = await self.db_manager.create_new_chatroom(session_id, profile_id, 'conversation')
         
         if not current_chatroom_id:
             return {"type": "error", "response": "채팅방을 만들거나 찾는 데 문제가 발생했어요."}
