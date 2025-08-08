@@ -68,40 +68,35 @@ class ConversationLogic:
     #     except Exception as e:
     #         print(f"[오류] RAG 또는 체인 설정 중 심각한 문제 발생: {e}"); return None
 
-    async def talk(self, req: dict, profile_id: int):
+    async def talk(self, req: dict, user_id: int, profile_id: int):
         user_input = req['user_input']
         session_id = req['session_id']
 
-        # --- 여기가 수정된 핵심 로직입니다 ---
-        # 1. 중단 키워드가 있는지 먼저 확인
         if any(keyword in user_input for keyword in STOP_KEYWORDS):
             await self.db_manager.summarize_and_close_room(session_id)
-            return {
-                "type": "end",
-                "response": "오늘도 재밌었어! 다음에 또 이야기하자~"
-            }
+            return {"type": "end", "response": "알겠어! 대화를 종료할게. 다음에 또 이야기하자!"}
 
         session_state = self.db_manager.store.setdefault(session_id, {})
         current_chatroom_id = session_state.get('chatroom_id')
-        history = session_state.get('hisstory')
+        history = session_state.get('history')
 
         if not current_chatroom_id:
-            current_chatroom_id = await self.db_manager.create_new_chatroom(session_id, profile_id, 'conversation')
+            current_chatroom_id = await self.db_manager.create_new_chatroom(session_id, user_id, profile_id, 'conversation')
         elif history and history.messages:
             history_str = "\n".join([f"{msg.type}: {msg.content}" for msg in history.messages[-4:]])
             topic_check_result = await self.topic_check_chain.ainvoke({"history": history_str, "input": user_input})
             if "NEW_TOPIC" in topic_check_result:
                 await self.db_manager.summarize_and_close_room(session_id)
-                current_chatroom_id = await self.db_manager.create_new_chatroom(session_id, profile_id, 'conversation')
+                current_chatroom_id = await self.db_manager.create_new_chatroom(session_id, user_id, profile_id, 'conversation')
         
         if not current_chatroom_id:
             return {"type": "error", "response": "채팅방을 만들거나 찾는 데 문제가 발생했어요."}
 
-        if not self.rag_chain:
+        if not self.conversational_chain:
             return {"type": "error", "response": "챗봇 로직 초기화에 실패했습니다."}
             
         try:
-            response_text = await self.rag_chain.ainvoke(
+            response_text = await self.conversational_chain.ainvoke(
                 {"input": user_input},
                 config={'configurable': {'session_id': session_id}}
             )
