@@ -20,7 +20,7 @@ class ChatbotSystem:
             return
         
         print("챗봇 시스템 로딩 시작")
-        self.model = ChatOllama(model=MODEL_NAME)
+        self.model = ChatOllama(model="timhan/llama3korean8b4qkm")
         self.db_manager = DatabaseManager(self.model)
         self.conversation_logic = ConversationLogic(self.model, self.db_manager)
         self.roleplay_logic = RolePlayLogic(self.model, self.db_manager)
