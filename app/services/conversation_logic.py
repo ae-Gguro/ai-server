@@ -5,7 +5,8 @@ from langchain_core.runnables.history import RunnableWithMessageHistory
 from langchain_community.vectorstores import Chroma
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_community.document_loaders import TextLoader
-from langchain_huggingface import HuggingFaceEmbeddings
+# from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_community.embeddings import OllamaEmbeddings
 from app.db.database import DatabaseManager
 from app.core.config import EMBEDDING_MODEL_NAME, RAG_DATA_PATH
 from app.prompts.prompts import CONVERSATION_INSTRUCTION, TOPIC_CHECK_PROMPT_TEMPLATE
@@ -30,7 +31,8 @@ class ConversationLogic:
 
     def _setup_rag_and_history(self):
         try:
-            embeddings = HuggingFaceEmbeddings(model_name=EMBEDDING_MODEL_NAME)
+            # embeddings = HuggingFaceEmbeddings(model_name=EMBEDDING_MODEL_NAME)
+            embeddings = OllamaEmbeddings(model="mxbai-embed-large")
             documents = TextLoader(RAG_DATA_PATH, encoding='utf-8').load()
             text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=100)
             docs = text_splitter.split_documents(documents)
