@@ -68,7 +68,7 @@ class ConversationLogic:
     #     except Exception as e:
     #         print(f"[오류] RAG 또는 체인 설정 중 심각한 문제 발생: {e}"); return None
 
-    async def talk(self, req: dict, user_id: int, profile_id: int):
+    async def talk(self, req: dict, profile_id: int):
         user_input = req['user_input']
         session_id = req['session_id']
 
