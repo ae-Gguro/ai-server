@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter, HTTPException, Depends
 from app.services.chatbot_system import chatbot_system
-from collections import defaultdict # 그룹화를 위해 defaultdict를 사용합니다.
+from collections import defaultdict
 from app.core.security import get_current_user_id
 
 router = APIRouter()
@@ -11,11 +11,7 @@ router = APIRouter()
 async def get_sentiment_summary(
     profile_id: int,
     user_id: int = Depends(get_current_user_id)
-    ):
-    """
-    프로필에 대해 저장된 모든 긍정/부정 감정 분석 결과를
-    날짜별로 그룹화하여 반환합니다.
-    """
+):
     analyses = chatbot_system.db_manager.get_analyses_by_profile_id(profile_id)
     
     if not analyses:
@@ -29,10 +25,13 @@ async def get_sentiment_summary(
     for record in analyses:
         date_key = record['created_at'].strftime('%Y-%m-%d')
         
+        # --- 여기가 수정된 부분입니다 ---
+        # keyword 필드를 추가하고, 키 이름을 최종 형식에 맞춥니다.
         formatted_record = {
             "talk_id": record['talk_id'],
-            "text": record['summary'],     
-            "positive": record['is_positive'] 
+            "text": record['summary'],
+            "keyword": record['keyword'],
+            "positive": record['is_positive']
         }
         
         grouped_analyses[date_key].append(formatted_record)

@@ -64,7 +64,6 @@ class DatabaseManager:
                 cursor.execute("""
                     CREATE TABLE IF NOT EXISTS chatroom (
                         id BIGSERIAL PRIMARY KEY, 
-                        user_id BIGINT NOT NULL, 
                         profile_id BIGINT NOT NULL, 
                         topic TEXT, 
                         created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -83,7 +82,6 @@ class DatabaseManager:
                     CREATE TABLE IF NOT EXISTS talk (
                         id BIGSERIAL PRIMARY KEY,
                         chatroom_id BIGINT NOT NULL REFERENCES chatroom(id) ON DELETE CASCADE,
-                        user_id BIGINT NOT NULL,
                         profile_id BIGINT NOT NULL,
                         category VARCHAR(50) NOT NULL,
                         content TEXT NOT NULL,
@@ -99,10 +97,10 @@ class DatabaseManager:
                 cursor.execute("""
                     CREATE TABLE IF NOT EXISTS analysis (
                         id BIGSERIAL PRIMARY KEY,
-                        talk_id BIGINT NOT NULL UNIQUE REFERENCES talk(id) ON DELETE CASCADE,
-                        user_id BIGINT NOT NULL,
+                        talk_id BIGINT NOT NULL UNIQUE REFERENCES talk(id),
                         profile_id BIGINT NOT NULL,
                         summary TEXT NOT NULL,
+                        keyword TEXT, -- 키워드 저장을 위한 컬럼 추가
                         is_positive BOOLEAN NOT NULL,
                         created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
                     );""")
@@ -189,23 +187,25 @@ class DatabaseManager:
             
     async def _analyze_and_save_talk_analysis(self, talk_id: int, profile_id: int, user_input: str, is_positive: bool):
         analysis_chain = self.analysis_chains.get(is_positive)
-        if not analysis_chain:
-            print(f"[오류] {is_positive}에 대한 분석 체인을 찾을 수 없습니다.")
-            return
+        if not analysis_chain: return
+
         try:
-            raw_summary = await analysis_chain.ainvoke({"user_talk": user_input})
-            clean_summary = raw_summary.strip()
-            if "[출력 형식]" in clean_summary:
-                clean_summary = clean_summary.split("[출력 형식]")[-1].strip()
-            elif '\n' in clean_summary:
-                 clean_summary = clean_summary.split('\n')[-1].strip()
+            raw_response = await analysis_chain.ainvoke({"user_talk": user_input})
+            
+            summary_match = re.search(r"\[요약문\]:\s*(.*)", raw_response)
+            keyword_match = re.search(r"\[핵심 단어\]:\s*(.*)", raw_response)
+            
+            clean_summary = summary_match.group(1).strip() if summary_match else "분석 결과를 요약하는 데 실패했어요."
+            clean_keyword = keyword_match.group(1).strip() if keyword_match else None
+            print(clean_keyword)
+            print(clean_summary)
             conn = self._create_db_connection()
             if conn is None: return
             try:
                 with conn.cursor() as cursor:
                     cursor.execute(
-                        "INSERT INTO analysis (talk_id, profile_id, summary, is_positive) VALUES (%s, %s, %s, %s)",
-                        (talk_id, profile_id, clean_summary, is_positive)
+                        "INSERT INTO analysis (talk_id, profile_id, summary, keyword, is_positive) VALUES (%s, %s, %s, %s, %s)",
+                        (talk_id, profile_id, clean_summary, clean_keyword, is_positive)
                     )
                 conn.commit()
                 print(f"✅ 대화 분석 완료 및 저장 (talk_id: {talk_id}, positive: {is_positive})")
@@ -215,6 +215,7 @@ class DatabaseManager:
                 if conn: conn.close()
         except Exception as e:
             print(f"[오류] 대화 분석 중 문제 발생: {e}")
+            
 
     async def save_conversation_to_db(self, session_id: str, user_input: str, bot_response: str, chatroom_id: int, profile_id: int):
         sentiment = "일반"
@@ -270,7 +271,7 @@ class DatabaseManager:
         try:
             with conn.cursor() as cursor:
                 cursor.execute("""
-                    SELECT id, talk_id, summary, is_positive, created_at
+                    SELECT id, talk_id, summary, keyword, is_positive, created_at
                     FROM analysis
                     WHERE profile_id = %s
                     ORDER BY created_at DESC
@@ -283,6 +284,7 @@ class DatabaseManager:
             return []
         finally:
             if conn: conn.close()
+
 
     def get_chatrooms_by_profile_id(self, profile_id: int):
         conn = self._create_db_connection()
