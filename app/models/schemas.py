@@ -32,3 +32,10 @@ class ChosungRequest(BaseModel):
     user_input: str
     session_id: str
     profile_id: int
+
+
+class AnimalQuizRequest(BaseModel):
+    user_input: str # 답변 제출 시
+    session_id: str
+    profile_id: int
+    animal_name: Optional[str] = None # 퀴즈 시작 시
