@@ -25,7 +25,7 @@ class ChatbotSystem:
         self.conversation_logic = ConversationLogic(self.model, self.db_manager)
         self.roleplay_logic = RolePlayLogic(self.model, self.db_manager)
         self.quiz_logic = QuizLogic(self.model, self.db_manager)
-        self.relationship_advisor = RelationshipAdvisor(self.model)
+        self.relationship_advisor = RelationshipAdvisor(self.model, self.db_manager)
         self.chosung_logic = ChosungQuizLogic(self.db_manager)
         self.initialized = True
         print("챗봇 시스템이 정상적으로 로드됨")

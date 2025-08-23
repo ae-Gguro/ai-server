@@ -422,3 +422,25 @@ class DatabaseManager:
             return []
         finally:
             if conn: conn.close()
+
+
+    def get_analyses_by_date_range(self, profile_id: int, start_date, end_date):
+        """특정 기간 동안의 프로필에 대한 모든 분석 기록을 조회합니다."""
+        conn = self._create_db_connection()
+        if conn is None: return []
+        try:
+            with conn.cursor() as cursor:
+                # created_at이 start_date와 end_date 사이에 있는 데이터만 조회
+                cursor.execute("""
+                    SELECT keyword, is_positive, created_at
+                    FROM analysis
+                    WHERE profile_id = %s AND created_at >= %s AND created_at < %s
+                """, (profile_id, start_date, end_date))
+                analyses = cursor.fetchall()
+                columns = [desc[0] for desc in cursor.description]
+                return [dict(zip(columns, row)) for row in analyses]
+        except Error as e:
+            print(f"[DB 오류] 기간별 분석 목록 조회 실패: {e}")
+            return []
+        finally:
+            if conn: conn.close()
