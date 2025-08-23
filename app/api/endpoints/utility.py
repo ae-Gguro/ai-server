@@ -18,7 +18,4 @@ async def get_relationship_advice(
     req: AdviceRequest,
     user_id: int = Depends(get_current_user_id)
 ):
-    # --- 여기가 수정된 부분입니다 ---
-    # generate_advice -> generate_weekly_report 로 함수 이름 변경
-    # 또한, 서비스 함수는 profile_id만 필요로 하므로 req.profile_id만 전달합니다.
     return await chatbot_system.relationship_advisor.generate_advice(user_id, req.profile_id)
