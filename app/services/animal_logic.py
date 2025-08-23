@@ -3,7 +3,7 @@ import asyncio
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from app.db.database import DatabaseManager
-from app.prompts.prompts import QUIZ_EVAL_SYSTEM_PROMPT, QUIZ_EVAL_FEW_SHOTS # 안전 퀴즈의 평가 프롬프트 재사용
+from app.prompts.prompts import ANIMAL_QUIZ_EVAL_SYSTEM_PROMPT, ANIMAL_QUIZ_EVAL_FEW_SHOTS # 안전 퀴즈의 평가 프롬프트 재사용
 
 class AnimalQuizLogic:
     def __init__(self, model, db_manager: DatabaseManager):
@@ -36,8 +36,8 @@ class AnimalQuizLogic:
         # 안전 퀴즈와 동일한 평가 체인을 사용
         try:
             prompt = ChatPromptTemplate.from_messages([
-                ("system", QUIZ_EVAL_SYSTEM_PROMPT), 
-                *sum([[("human", ex["input"]), ("ai", ex["output"])] for ex in QUIZ_EVAL_FEW_SHOTS], []), 
+                ("system", ANIMAL_QUIZ_EVAL_SYSTEM_PROMPT), 
+                *sum([[("human", ex["input"]), ("ai", ex["output"])] for ex in ANIMAL_QUIZ_EVAL_FEW_SHOTS], []), 
                 ("human", "핵심 개념: {answer}\n답변: {user_input}")
             ])
             return prompt | self.model | StrOutputParser()
