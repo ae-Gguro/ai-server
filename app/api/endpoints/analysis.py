@@ -97,8 +97,8 @@ async def get_weekly_sentiment_summary(
     }
 
 
-@router.get("/sentiment-summary/{profile_id}", summary="날짜별 긍정/부정 감정 분석 목록 조회")
-async def get_sentiment_summary(
+@router.get("/sentiment-summary/{profile_id}", summary="전체 기간 날짜별 분석 목록 조회")
+async def get_all_sentiment_summary(
     profile_id: int,
     user_id: int = Depends(get_current_user_id)
 ):
@@ -111,17 +111,16 @@ async def get_sentiment_summary(
         )
     
     grouped_analyses = defaultdict(list)
-
     for record in analyses:
         date_key = record['created_at'].strftime('%Y-%m-%d')
         
         formatted_record = {
             "talk_id": record['talk_id'],
-            "text": record['summary'],
+            "chatroom_id": record['chatroom_id'],
+            "text": record['summary'],      
             "keyword": record['keyword'],
-            "positive": record['is_positive']
+            "positive": record['is_positive'] 
         }
-        
         grouped_analyses[date_key].append(formatted_record)
-
+        
     return grouped_analyses

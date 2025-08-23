@@ -271,10 +271,22 @@ class DatabaseManager:
         try:
             with conn.cursor() as cursor:
                 cursor.execute("""
-                    SELECT id, talk_id, summary, keyword, is_positive, created_at
-                    FROM analysis
-                    WHERE profile_id = %s
-                    ORDER BY created_at DESC
+                    SELECT 
+                        a.id, 
+                        a.talk_id, 
+                        a.summary, 
+                        a.keyword, 
+                        a.is_positive, 
+                        a.created_at,
+                        t.chatroom_id 
+                    FROM 
+                        analysis AS a
+                    JOIN 
+                        talk AS t ON a.talk_id = t.id
+                    WHERE 
+                        a.profile_id = %s
+                    ORDER BY 
+                        a.created_at DESC
                 """, (profile_id,))
                 analyses = cursor.fetchall()
                 columns = [desc[0] for desc in cursor.description]
