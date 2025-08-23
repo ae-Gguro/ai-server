@@ -1,4 +1,4 @@
-# --- FastAPI 서버 운영 ---
+﻿# --- FastAPI 서버 운영 ---
 fastapi
 uvicorn
 python-dotenv
@@ -19,11 +19,11 @@ ollama
 chromadb==0.5.3
 sentence-transformers==3.0.1
 torch==2.3.1
-pysqlite3-binary==0.5.3.0
+# pysqlite3-binary==0.5.3.0
 
 # --- 인증 및 보안 ---
 python-jose[cryptography]
 passlib[bcrypt]
 
 # --- 기타 ---
-pysqlite3-binary 
+# pysqlite3-binary 
