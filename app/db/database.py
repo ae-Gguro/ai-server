@@ -366,3 +366,25 @@ class DatabaseManager:
             return []
         finally:
             if conn: conn.close()
+
+
+    def get_today_analyses_by_profile_id(self, profile_id: int):
+        """오늘 날짜의 특정 프로필에 대한 모든 분석 기록을 조회합니다."""
+        conn = self._create_db_connection()
+        if conn is None: return []
+        try:
+            with conn.cursor() as cursor:
+                # DATE(created_at) = CURRENT_DATE 를 사용하여 오늘 데이터만 필터링
+                cursor.execute("""
+                    SELECT keyword, is_positive
+                    FROM analysis
+                    WHERE profile_id = %s AND DATE(created_at) = CURRENT_DATE
+                """, (profile_id,))
+                analyses = cursor.fetchall()
+                columns = [desc[0] for desc in cursor.description]
+                return [dict(zip(columns, row)) for row in analyses]
+        except Error as e:
+            print(f"[DB 오류] 오늘의 분석 목록 조회 실패: {e}")
+            return []
+        finally:
+            if conn: conn.close()
