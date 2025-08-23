@@ -444,3 +444,23 @@ class DatabaseManager:
             return []
         finally:
             if conn: conn.close()
+
+
+    def check_chatroom_created_today(self, profile_id: int) -> bool:
+        """오늘 날짜에 특정 프로필로 생성된 채팅방이 있는지 확인합니다."""
+        conn = self._create_db_connection()
+        if conn is None: return False
+        try:
+            with conn.cursor() as cursor:
+                cursor.execute("""
+                    SELECT COUNT(*) 
+                    FROM chatroom 
+                    WHERE profile_id = %s AND DATE(created_at) = CURRENT_DATE
+                """, (profile_id,))
+                
+                return cursor.fetchone()[0] > 0
+        except Error as e:
+            print(f"[DB 오류] 오늘 생성된 채팅방 확인 실패: {e}")
+            return False
+        finally:
+            if conn: conn.close()

@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.api.endpoints import conversation, quiz, roleplay, utility, history, analysis, chosung 
+from app.api.endpoints import conversation, quiz, roleplay, utility, history, analysis, chosung, chatroom
 
 api_router = APIRouter()
 
@@ -11,3 +11,4 @@ api_router.include_router(utility.router,  prefix="/api", tags=["Utility"])
 api_router.include_router(history.router, prefix="/api/history", tags=["History"])
 api_router.include_router(analysis.router, prefix="/api/analysis", tags=["Analysis"]) 
 api_router.include_router(chosung.router, prefix="/api/chosung", tags=["Chosung Quiz"]) 
+api_router.include_router(chatroom.router, prefix="/chatrooms", tags=["Chatrooms"])
