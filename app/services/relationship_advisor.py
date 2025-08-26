@@ -11,20 +11,54 @@ class RelationshipAdvisor:
         self.model = model
         self.db_manager = db_manager
 
-    async def generate_advice(self, user_id: int, profile_id: int):
-        # 조회 시점과 상관없이 항상 '지난주 월요일~일요일'을 계산
+    def get_weekly_report_from_db(self, profile_id: int, start_date: date):
+        conn = self.db_manager._create_db_connection()
+        if conn is None: return None
+        try:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    "SELECT report_content FROM weekly_reports WHERE profile_id = %s AND start_date = %s",
+                    (profile_id, start_date)
+                )
+                report = cursor.fetchone()
+                return report[0] if report else None
+        except Exception as e:
+            print(f"[DB 오류] 주간 리포트 조회 실패: {e}")
+            return None
+        finally:
+            if conn: conn.close()
+
+    def save_weekly_report_to_db(self, profile_id: int, start_date: date, end_date: date, report_content: str):
+        conn = self.db_manager._create_db_connection()
+        if conn is None: return
+        try:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    "INSERT INTO weekly_reports (profile_id, start_date, end_date, report_content) VALUES (%s, %s, %s, %s)",
+                    (profile_id, start_date, end_date, report_content)
+                )
+            conn.commit()
+            print(f"✅ 주간 리포트 저장 완료 (profile_id: {profile_id}, start_date: {start_date})")
+        except Exception as e:
+            print(f"[DB 오류] 주간 리포트 저장 실패: {e}"); conn.rollback()
+        finally:
+            if conn: conn.close()
+
+    async def generate_and_get_weekly_report(self, profile_id: int):
         today = date.today()
         start_of_last_week = today - timedelta(days=today.weekday() + 7)
-        start_of_this_week = start_of_last_week + timedelta(days=7)
-
-        # DB에서 해당 기간의 분석 기록 조회
-        records = self.db_manager.get_analyses_by_date_range(profile_id, start_of_last_week, start_of_this_week)
         
+        existing_report = self.get_weekly_report_from_db(profile_id, start_of_last_week)
+        if existing_report:
+            print(f"✅ 기존 주간 리포트 조회 성공 (profile_id: {profile_id})")
+            return {"profile_id": profile_id, "advice": existing_report}
+
+        print(f"⏳ 기존 리포트 없음. LLM으로 새로 생성 시작 (profile_id: {profile_id})")
+        start_of_this_week = start_of_last_week + timedelta(days=7)
+        records = self.db_manager.get_analyses_by_date_range(profile_id, start_of_last_week, start_of_this_week)
         if not records:
-            # 데이터가 없을 경우 바로 HTTPException을 발생시켜 종료
             raise HTTPException(status_code=404, detail="지난주에 분석된 대화 기록이 없습니다.")
 
-        # 데이터 가공: 키워드 빈도수 및 시간대별 반응 집계
         positive_keywords = Counter()
         negative_keywords = Counter()
         time_summary = {"오전": {"긍정": 0, "부정": 0}, "오후": {"긍정": 0, "부정": 0}, "저녁": {"긍정": 0, "부정": 0}}
@@ -36,24 +70,20 @@ class RelationshipAdvisor:
                     positive_keywords[record['keyword']] += 1
                 else:
                     negative_keywords[record['keyword']] += 1
-            
             if 6 <= hour < 12: time_period = "오전"
             elif 12 <= hour < 18: time_period = "오후"
             else: time_period = "저녁"
-
             if record['is_positive']:
                 time_summary[time_period]["긍정"] += 1
             else:
                 time_summary[time_period]["부정"] += 1
         
-        # 프롬프트에 주입할 데이터 문자열로 변환
         pos_kw_str = ", ".join([f"'{kw}'({count}회)" for kw, count in positive_keywords.most_common(5)])
         neg_kw_str = ", ".join([f"'{kw}'({count}회)" for kw, count in negative_keywords.most_common(5)])
         daily_summary_str = (f"오전(긍정 {time_summary['오전']['긍정']}회, 부정 {time_summary['오전']['부정']}회), "
                              f"오후(긍정 {time_summary['오후']['긍정']}회, 부정 {time_summary['오후']['부정']}회), "
                              f"저녁(긍정 {time_summary['저녁']['긍정']}회, 부정 {time_summary['저녁']['부정']}회)")
         
-        # LLM 체인 구성 및 호출
         prompt = ChatPromptTemplate.from_template(RELATIONSHIP_ADVICE_PROMPT_TEMPLATE)
         chain = prompt | self.model | StrOutputParser()
         
@@ -63,8 +93,5 @@ class RelationshipAdvisor:
             "daily_summary": daily_summary_str
         })
         
-        # 최종 응답 반환
-        return {
-            "profile_id": profile_id,
-            "advice": advice_markdown
-        }
+        self.save_weekly_report_to_db(profile_id, start_of_last_week, start_of_this_week - timedelta(days=1), advice_markdown)
+        return {"profile_id": profile_id, "advice": advice_markdown}

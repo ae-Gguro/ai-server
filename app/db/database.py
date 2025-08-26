@@ -123,6 +123,17 @@ class DatabaseManager:
                     END$$;
                 """)
 
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS weekly_reports (
+                        id BIGSERIAL PRIMARY KEY,
+                        profile_id BIGINT NOT NULL,
+                        start_date DATE NOT NULL,
+                        end_date DATE NOT NULL,
+                        report_content TEXT NOT NULL,
+                        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                        UNIQUE (profile_id, start_date) -- 한 프로필에 대해 해당 주차의 리포트는 하나만 존재
+                    );""")
+
             conn.commit()
             print("[DB 정보] 테이블 상태 확인 및 준비 완료.")
         except Error as e:
@@ -157,8 +168,6 @@ class DatabaseManager:
             full_history_str = "\n".join([f"{msg.type}: {msg.content}" for msg in history.messages])
             raw_summary_text = await self.summarization_chain.ainvoke({"history": full_history_str})
             
-            # --- 여기가 수정된 핵심 부분입니다 ---
-            # LLM 응답에서 '[요약]:' 뒷부분만 추출합니다.
             summary_match = re.search(r"\[요약\]:\s*(.*)", raw_summary_text, re.DOTALL)
             summary_text = summary_match.group(1).strip() if summary_match else raw_summary_text.strip()
             
@@ -345,7 +354,6 @@ class DatabaseManager:
             if conn: conn.close()
 
     def get_talks_by_chatroom_id(self, chatroom_id: int):
-        # ... (이하 로직 변경 없음)
         conn = self._create_db_connection()
         if conn is None: return []
         try:
@@ -366,7 +374,6 @@ class DatabaseManager:
             if conn: conn.close()
 
     def update_talk_feedback(self, talk_id: int, like_status: bool):
-        # ... (이하 로직 변경 없음)
         conn = self._create_db_connection()
         if conn is None: return False
         try:
