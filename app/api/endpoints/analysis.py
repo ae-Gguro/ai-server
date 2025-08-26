@@ -9,17 +9,21 @@ import calendar
 router = APIRouter()
 
 
-@router.get("/summary/daily/{profile_id}", summary="오늘 하루 긍정/부정 단어 요약")
+@router.get("/summary/daily/{profile_id}", summary="특정 날짜 긍정/부정 단어 요약")
 async def get_daily_sentiment_summary(
     profile_id: int,
+    # 쿼리 파라미터로 'date'를 받습니다. (예: ?date=2025-08-26)
+    target_date: date = Query(..., description="조회할 날짜 (YYYY-MM-DD)"),
     user_id: int = Depends(get_current_user_id)
 ):
-
-    records = chatbot_system.db_manager.get_today_analyses_by_profile_id(profile_id)
+    
+    # 1. DB에서 해당 날짜의 분석 기록만 가져옴
+    records = chatbot_system.db_manager.get_analyses_by_date(profile_id, target_date)
 
     positive_keywords = []
     negative_keywords = []
 
+    # 2. 긍정/부정 키워드 분리
     for record in records:
         if record['keyword']:
             if record['is_positive']:
@@ -27,19 +31,16 @@ async def get_daily_sentiment_summary(
             else:
                 negative_keywords.append(record['keyword'])
     
+    # 3. 최종 응답 형식 구성
     total_count = len(positive_keywords) + len(negative_keywords)
-    positive_percentage = 0
-    negative_percentage = 0
-
-    if total_count > 0:
-        positive_percentage = round((len(positive_keywords) / total_count) * 100)
-        negative_percentage = round((len(negative_keywords) / total_count) * 100)
+    positive_percentage = round((len(positive_keywords) / total_count) * 100) if total_count > 0 else 0
+    negative_percentage = round((len(negative_keywords) / total_count) * 100) if total_count > 0 else 0
     
     return {
         "profile_id": profile_id,
-        "date": date.today().strftime('%Y-%m-%d'),
+        "date": target_date.strftime('%Y-%m-%d'),
         "positive_percentage": positive_percentage,
-        "negative_percentage": negative_percentage, 
+        "negative_percentage": negative_percentage,
         "positive_keywords": positive_keywords,
         "negative_keywords": negative_keywords
     }

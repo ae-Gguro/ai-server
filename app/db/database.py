@@ -1,5 +1,6 @@
 import psycopg2
 import re
+from datetime import date, timedelta
 from psycopg2 import Error
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
@@ -427,23 +428,23 @@ class DatabaseManager:
             if conn: conn.close()
 
 
-    def get_analyses_by_date_range(self, profile_id: int, start_date, end_date):
-        """특정 기간 동안의 프로필에 대한 모든 분석 기록을 조회합니다."""
+    def get_analyses_by_date(self, profile_id: int, target_date: date):
+        """특정 날짜의 프로필에 대한 모든 분석 기록을 조회합니다."""
         conn = self._create_db_connection()
         if conn is None: return []
         try:
             with conn.cursor() as cursor:
-                # created_at이 start_date와 end_date 사이에 있는 데이터만 조회
+                # DATE(created_at)이 target_date와 일치하는 데이터만 필터링
                 cursor.execute("""
-                    SELECT keyword, is_positive, created_at
+                    SELECT keyword, is_positive
                     FROM analysis
-                    WHERE profile_id = %s AND created_at >= %s AND created_at < %s
-                """, (profile_id, start_date, end_date))
+                    WHERE profile_id = %s AND DATE(created_at) = %s
+                """, (profile_id, target_date))
                 analyses = cursor.fetchall()
                 columns = [desc[0] for desc in cursor.description]
                 return [dict(zip(columns, row)) for row in analyses]
         except Error as e:
-            print(f"[DB 오류] 기간별 분석 목록 조회 실패: {e}")
+            print(f"[DB 오류] 특정일 분석 목록 조회 실패: {e}")
             return []
         finally:
             if conn: conn.close()
