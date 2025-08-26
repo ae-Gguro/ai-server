@@ -11,7 +11,7 @@ async def handle_conversation(
     background_tasks: BackgroundTasks,
     user_id: int = Depends(get_current_user_id) 
 ):
-    result = await chatbot_system.conversation_logic.talk(req.dict(), req.profile_id)
+    result = await chatbot_system.conversation_logic.talk(req.dict(), user_id, req.profile_id)
     
     chatroom_id = result.get("chatroom_id")
     response_text = result.get("response")
