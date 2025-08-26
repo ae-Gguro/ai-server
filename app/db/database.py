@@ -464,3 +464,23 @@ class DatabaseManager:
             return False
         finally:
             if conn: conn.close()
+
+
+
+    def get_profile_name(self, profile_id: int):
+        """PostgreSQL의 profile 테이블에서 profile_last_name을 조회합니다."""
+        conn = self._create_db_connection()
+        if conn is None: return None
+        try:
+            with conn.cursor() as cursor:
+                cursor.execute("SELECT profile_first_name FROM profile WHERE id = %s", (profile_id,))
+                profile = cursor.fetchone()
+                # fetchone()은 튜플을 반환하므로, 첫 번째 요소를 가져옵니다.
+                if profile:
+                    return profile[0]
+                return None
+        except Error as e:
+            print(f"[DB 오류] PostgreSQL profile 조회 실패: {e}")
+            return None
+        finally:
+            if conn: conn.close()
