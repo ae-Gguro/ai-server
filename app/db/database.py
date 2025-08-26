@@ -490,6 +490,27 @@ class DatabaseManager:
         finally:
             if conn: conn.close()
 
+              
+    def get_analyses_by_month(self, profile_id: int, year: int, month: int):
+        """특정 월의 프로필에 대한 모든 분석 기록을 조회합니다."""
+        conn = self._create_db_connection()
+        if conn is None: return []
+        try:
+            with conn.cursor() as cursor:
+                # EXTRACT를 사용하여 년(YEAR)과 월(MONTH)을 기준으로 데이터 필터링
+                cursor.execute("""
+                    SELECT is_positive, created_at
+                    FROM analysis
+                    WHERE profile_id = %s 
+                    AND EXTRACT(YEAR FROM created_at) = %s 
+                    AND EXTRACT(MONTH FROM created_at) = %s
+                """, (profile_id, year, month))
+                analyses = cursor.fetchall()
+                columns = [desc[0] for desc in cursor.description]
+                return [dict(zip(columns, row)) for row in analyses]
+        except Error as e:
+            print(f"[DB 오류] 월별 분석 목록 조회 실패: {e}")
+            return []
 
 
     def get_profile_name(self, profile_id: int):
@@ -507,5 +528,6 @@ class DatabaseManager:
         except Error as e:
             print(f"[DB 오류] PostgreSQL profile 조회 실패: {e}")
             return None
+
         finally:
             if conn: conn.close()

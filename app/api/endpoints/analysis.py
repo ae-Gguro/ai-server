@@ -1,9 +1,10 @@
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Query
 from app.services.chatbot_system import chatbot_system
 from collections import defaultdict
 from app.core.security import get_current_user_id
 from collections import defaultdict, Counter
 from datetime import date, timedelta
+import calendar
 
 router = APIRouter()
 
@@ -124,3 +125,61 @@ async def get_all_sentiment_summary(
         grouped_analyses[date_key].append(formatted_record)
         
     return grouped_analyses
+
+
+@router.get("/summary/monthly/{profile_id}", summary="월간 긍정/부정 상태 리포트")
+async def get_monthly_sentiment_summary(
+    profile_id: int,
+    year: int = Query(..., description="조회할 년도 (예: 2025)"),
+    month: int = Query(..., ge=1, le=12, description="조회할 월 (1~12)"),
+    user_id: int = Depends(get_current_user_id)
+):
+    # 1. DB에서 해당 월의 데이터 조회
+    records = chatbot_system.db_manager.get_analyses_by_month(profile_id, year, month)
+    
+    # 2. 일자별 긍정/부정 카운트 집계
+    daily_counts = defaultdict(lambda: {'positive': 0, 'negative': 0})
+    for record in records:
+        day = record['created_at'].day
+        if record['is_positive']:
+            daily_counts[day]['positive'] += 1
+        else:
+            daily_counts[day]['negative'] += 1
+            
+    # 3. 해당 월의 마지막 날짜 계산
+    _, num_days_in_month = calendar.monthrange(year, month)
+    
+    daily_status_list = []
+    total_positive = 0
+    total_negative = 0
+
+    # 4. 1일부터 마지막 날까지 순회하며 상태 결정
+    for day in range(1, num_days_in_month + 1):
+        counts = daily_counts[day]
+        pos_count = counts['positive']
+        neg_count = counts['negative']
+        
+        total_positive += pos_count
+        total_negative += neg_count
+        
+        status = "none"
+        if pos_count > neg_count:
+            status = "positive"
+        elif neg_count > pos_count:
+            status = "negative"
+        elif pos_count != 0 and pos_count == neg_count:
+            status = "neutral"
+            
+        daily_status_list.append({"day": day, "status": status})
+        
+    # 5. 월간 전체 긍정 비율 계산
+    total_interactions = total_positive + total_negative
+    monthly_positive_percentage = round((total_positive / total_interactions) * 100) if total_interactions > 0 else 0
+
+    return {
+        "profile_id": profile_id,
+        "year": year,
+        "month": month,
+        "monthly_positive_percentage": monthly_positive_percentage,
+        "daily_statuses": daily_status_list
+    }
