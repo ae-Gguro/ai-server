@@ -129,25 +129,43 @@ class DatabaseManager:
         finally:
             if conn: conn.close()
 
-    async def summarize_and_close_room(self, session_id: str):
+    async def summarize_and_close_room(self, session_id: str, final_input: str = None):
         session_state = self.store.get(session_id)
         if not session_state or not session_state.get('chatroom_id'):
             return
+
         current_chatroom_id = session_state['chatroom_id']
         history = session_state['history']
+        
+        if final_input:
+            from langchain_core.messages import HumanMessage
+            history.add_message(HumanMessage(content=final_input))
+
         summary = ""
         room_type = session_state.get('type', 'conversation')
         quiz_info = session_state.get('quiz_state')
+
         if room_type == 'quiz' and quiz_info:
             quiz_topic = quiz_info.get('topic', '안전 퀴즈')
             summary = f"[{quiz_topic}] 퀴즈를 완료했어요."
+        elif room_type == 'chosung_quiz':
+             summary = "[초성퀴즈]를 완료했어요."
+        elif room_type == 'animal_quiz':
+             summary = "[동물퀴즈]를 완료했어요."
         elif history.messages:
             full_history_str = "\n".join([f"{msg.type}: {msg.content}" for msg in history.messages])
-            summary_text = await self.summarization_chain.ainvoke({"history": full_history_str})
+            raw_summary_text = await self.summarization_chain.ainvoke({"history": full_history_str})
+            
+            # --- 여기가 수정된 핵심 부분입니다 ---
+            # LLM 응답에서 '[요약]:' 뒷부분만 추출합니다.
+            summary_match = re.search(r"\[요약\]:\s*(.*)", raw_summary_text, re.DOTALL)
+            summary_text = summary_match.group(1).strip() if summary_match else raw_summary_text.strip()
+            
             if room_type == 'roleplay' and session_state.get('roleplay_state'):
-                summary = f"[역할놀이] {summary_text.strip()}"
+                summary = f"[역할놀이] {summary_text}"
             else:
-                summary = f"[일상대화] {summary_text.strip()}"
+                summary = f"[일상대화] {summary_text}"
+        
         if summary:
             conn = self._create_db_connection()
             if conn is None: return
@@ -160,8 +178,15 @@ class DatabaseManager:
                 print(f"[DB 오류] 채팅방 요약 실패: {e}"); conn.rollback()
             finally:
                 if conn: conn.close()
-        self.store[session_id] = {'history': InMemoryChatMessageHistory(), 'chatroom_id': None, 'type': 'conversation', 'roleplay_state': None, 'quiz_state': None}
-        print(f"세션({session_id})이 완전히 종료 및 초기화되었습니다.")
+        
+        # 세션 초기화
+        session_state_keys = list(session_state.keys())
+        for key in session_state_keys:
+            if key not in ['history', 'chatroom_id']:
+                session_state[key] = None
+        session_state['history'].clear()
+        session_state['chatroom_id'] = None
+        print(f"세션({session_id})이 초기화되었습니다.")
 
     async def create_new_chatroom(self, session_id: str, profile_id: int, room_type: str):
         await self.summarize_and_close_room(session_id)
@@ -462,5 +487,25 @@ class DatabaseManager:
         except Error as e:
             print(f"[DB 오류] 오늘 생성된 채팅방 확인 실패: {e}")
             return False
+        finally:
+            if conn: conn.close()
+
+
+
+    def get_profile_name(self, profile_id: int):
+        """PostgreSQL의 profile 테이블에서 profile_last_name을 조회합니다."""
+        conn = self._create_db_connection()
+        if conn is None: return None
+        try:
+            with conn.cursor() as cursor:
+                cursor.execute("SELECT profile_first_name FROM profile WHERE id = %s", (profile_id,))
+                profile = cursor.fetchone()
+                # fetchone()은 튜플을 반환하므로, 첫 번째 요소를 가져옵니다.
+                if profile:
+                    return profile[0]
+                return None
+        except Error as e:
+            print(f"[DB 오류] PostgreSQL profile 조회 실패: {e}")
+            return None
         finally:
             if conn: conn.close()
