@@ -92,8 +92,9 @@ gguro_chatbot/
 │   ├── models/             # Pydantic 스키마
 │   ├── prompts/            # 모든 LLM 프롬프트
 │   └── services/           # 비즈니스 로직 (대화, 퀴즈, 역할놀이 등)
-├── rag_data/               # RAG 및 퀴즈 데이터
+├── rag_data/               # 퀴즈 데이터
 ├── requirements.txt        # 필요 패키지 목록
+├── .env                    # 설정 정보 보관
 └── run.py                  # 서버 실행 스크립트
 ```
 
